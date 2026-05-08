@@ -1,0 +1,64 @@
+default:
+  image: python:3.11-slim
+
+stages:
+  - prepare
+  - test
+  - build
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  paths:
+    - .cache/pip
+
+before_script:
+  - python --version
+  - python -m pip install --upgrade pip
+  - pip install -r requirements.txt
+
+make_pipeline_reproducible:
+  stage: prepare
+  script:
+    - echo "Make pipeline reproducible"
+    - python --version > python-version.txt
+    - pip freeze > resolved-requirements.txt
+    - test -f requirements.txt
+    - test -f ml_pipeline.py
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - python-version.txt
+      - resolved-requirements.txt
+      - requirements.txt
+
+run_ml_pipeline:
+  stage: test
+  script:
+    - python ml_pipeline.py
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - artifacts/model.joblib
+      - artifacts/metrics.json
+
+run_service_tests:
+  stage: test
+  script:
+    - pytest -q
+
+prepare_release_metadata:
+  stage: build
+  script:
+    - mkdir -p build
+    - echo "ml-service:v1.1.0" > build/image-tag.txt
+    - echo "release_version=v1.1.0" > build/release.env
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - build/image-tag.txt
+      - build/release.env
